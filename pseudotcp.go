@@ -33,12 +33,15 @@ type SendPacket func(packet []byte, length int) error
 
 var toLinux SendPacket
 
-func Init(sendPacket SendPacket, proxyFQDN, proxyPort string) error {
+func Init(sendPacket SendPacket, verbose bool, proxyFQDN, proxyPort string) error {
 
 	if logger == nil {
+		level := slog.LevelInfo
+		if verbose {
+			level = slog.LevelDebug
+		}
 		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			// TODO: configurable logging
-			Level: slog.LevelDebug,
+			Level: level,
 		}))
 		slog.SetDefault(logger)
 	}
