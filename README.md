@@ -12,4 +12,6 @@ This will eventually integrate with our INVISV **masque** stack, which is an imp
 
 ## How do I use PseudoTCP?
 
-Once fully developed, PseudoTCP can be used as part of an Android VPN app. We are developing a [sample Android VPN app](https://github.com/Invisv-Privacy/pseudotcp-example-app) that uses this stack.
+PseudoTCP is intended to be used as part of an android VPN app. We have a [sample Android VPN app](https://github.com/Invisv-Privacy/pseudotcp-example-app) that uses this stack that can be referenced.
+
+We also have an [example binary](./example/tun/README.md) that you can use in order to bind the pseudotcp stack to a TUN interface for some amount of demonstration/evaluation.

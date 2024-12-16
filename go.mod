@@ -10,6 +10,9 @@ require (
 )
 
 require (
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
+	github.com/vishvananda/netlink v1.3.0 // indirect
+	github.com/vishvananda/netns v0.0.4 // indirect
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/mod v0.18.0 // indirect
