@@ -7,8 +7,8 @@ services:
       - "8081:8081/tcp"
       - "8444:8444/tcp"
       - "8444:8444/udp"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
     # Using Volumes here instead of COPYing in the Dockerfile allows us to make changes to configuration files and/or
     # certs without needing to re-build the container image
     volumes: 
