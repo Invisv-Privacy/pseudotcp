@@ -1,4 +1,4 @@
-# PseudoTCP: A lightweight partial TCP stack for packet to stream interposition stack in Go
+# PseudoTCP: A lightweight partial TCP stack for packet to stream interposition in Go
 
 ## What is PseudoTCP?
 
