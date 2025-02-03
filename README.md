@@ -15,3 +15,11 @@ This will eventually integrate with our INVISV **masque** stack, which is an imp
 PseudoTCP is intended to be used as part of an android VPN app. We have a [sample Android VPN app](https://github.com/Invisv-Privacy/pseudotcp-example-app) that uses this stack that can be referenced.
 
 We also have an [example binary](./example/tun/README.md) that you can use in order to bind the pseudotcp stack to a TUN interface for some amount of demonstration/evaluation.
+
+## Testing
+We currently have [integration tests](./tests/integration). They spin up a dockerized h2o proxy and leverage [gvisor's tcpip netstack](https://github.com/google/gvisor/tree/1a9abee80b7cb8655db7ba5714f0d3a8c00ccc67/pkg/tcpip) to emulate the android VPN host.
+
+To run the integration tests:
+```
+$ go test -v ./...
+```
