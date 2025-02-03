@@ -70,6 +70,10 @@ type TCPFlow struct {
 	proxyConn      io.ReadWriteCloser
 }
 
+// ProhibitDisallowedIPPorts determines whether we check if packets are heading to an "allowed IP/Port" tuple
+// And if we should prohibit them w/ a host unreachable code
+var ProhibitDisallowedIPPorts = true
+
 // activeTCPFlows stores a mapping from client port to the flow structure for TCP flows.
 var activeTCPFlows [65536]*TCPFlow
 
@@ -1099,7 +1103,8 @@ func UserStackIPProcessPacket(p []byte) {
 		(p[IP_DST] == 224 && p[IP_DST+1] == 0 && p[IP_DST+2] == 0) ||
 		(p[IP_DST] == 169 && p[IP_DST+1] == 254)
 
-	if disallowedIP {
+	logger.Debug("IP matches disallowed check", "p", p)
+	if disallowedIP && ProhibitDisallowedIPPorts {
 		icmpCode = 1 // host unreachable
 	}
 
