@@ -23,3 +23,31 @@ To run the integration tests:
 ```
 $ go test -v ./...
 ```
+
+## Benchmarking
+We include a benchmark that evaluates the performance of a TCP connection over our stack with a HTTP GET request of various sizes. We can then compare those figures to a matching HTTP GET request directly from client to httptest.
+
+```
+$ go test -bench=. -run='^#' -benchtime=20x ./tests/integration > bench-results.txt 
+$ benchstat ./bench-results.txt
+goos: linux
+goarch: amd64
+pkg: github.com/invisv-privacy/pseudotcp/tests/integration
+cpu: Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz
+                                                  │ ./bench.txt  │
+                                                  │    sec/op    │
+Throughput/with-pseudotcp-payload-10000B-8          602.7µ ± ∞ ¹
+Throughput/without-pseudotcp-payload-10000B-8       199.0µ ± ∞ ¹
+Throughput/with-pseudotcp-payload-100000B-8         1.022m ± ∞ ¹
+Throughput/without-pseudotcp-payload-100000B-8      665.0µ ± ∞ ¹
+Throughput/with-pseudotcp-payload-1000000B-8        5.817m ± ∞ ¹
+Throughput/without-pseudotcp-payload-1000000B-8     5.080m ± ∞ ¹
+Throughput/with-pseudotcp-payload-10000000B-8       45.71m ± ∞ ¹
+Throughput/without-pseudotcp-payload-10000000B-8    36.35m ± ∞ ¹
+Throughput/with-pseudotcp-payload-100000000B-8      934.4m ± ∞ ¹
+Throughput/without-pseudotcp-payload-100000000B-8   368.4m ± ∞ ¹
+geomean                                             8.202m
+¹ need >= 6 samples for confidence interval at level 0.95
+```
+
+It's important to note that "with pseudotcp" vs "without pseudotcp" is an extremely unfavorable comparison as "with pseudotcp" includes the overhead of not only our pseudotcp stack, but also the MASQUE connection overhead as well as the h2o proxy container and associated docker networking traversal.
