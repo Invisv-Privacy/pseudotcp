@@ -17,15 +17,10 @@ import (
 )
 
 func TestUDP(t *testing.T) {
-	err := pseudotcp.Init(sendPacket, true, containerIP, "8444")
-	require.NoError(t, err, "pseudotcp.Init")
-
-	defer pseudotcp.Shutdown()
-
 	sendBufferSize := pseudotcp.TUN_MTU - 150
 	receiveBufferSize := pseudotcp.INTERNET_MTU - 150
 	expectedRequest := make([]byte, sendBufferSize)
-	_, err = rand.Read(expectedRequest)
+	_, err := rand.Read(expectedRequest)
 	require.NoError(t, err, "rand.Read")
 	expectedReply := make([]byte, receiveBufferSize)
 	_, err = rand.Read(expectedReply)

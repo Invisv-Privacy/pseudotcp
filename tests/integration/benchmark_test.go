@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/invisv-privacy/pseudotcp"
 	"github.com/stretchr/testify/require"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -33,11 +32,7 @@ func BenchmarkThroughput(b *testing.B) {
 	}))
 	slog.SetDefault(logger)
 
-	// Set verbose to false
-	err := pseudotcp.Init(sendPacket, false, containerIP, "8444")
-	require.NoError(b, err, "pseudotcp.Init")
-
-	defer pseudotcp.Shutdown()
+	pTCP.SetLogger(logger)
 
 	// Start target HTTP/S server that replies with a payload determined by "?size" url query
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
