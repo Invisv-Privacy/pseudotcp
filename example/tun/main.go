@@ -72,8 +72,6 @@ func main() {
 		return nil
 	})
 
-	pseudotcp.ConfigureProtect(protectConnection)
-
 	sendPacket := func(packet []byte, length int) error {
 		p := gopacket.NewPacket(packet[:], layers.LayerTypeIPv4, gopacket.Default)
 		logger.Debug("Sending to TUN device", "p", p)
@@ -90,7 +88,19 @@ func main() {
 		return nil
 	}
 
-	err = pseudotcp.Init(sendPacket, *verbose, *proxyAddr, *proxyPort)
+	pTCPConfig := &pseudotcp.PseudoTCPConfig{
+		Logger:     logger,
+		SendPacket: sendPacket,
+
+		// Our test sends to a non-publicly route-able IP
+		ProhibitDisallowedIPPorts: false,
+	}
+
+	pTCP := pseudotcp.NewPseudoTCP(pTCPConfig)
+
+	pTCP.ConfigureProtect(protectConnection)
+
+	err = pTCP.Init(*proxyAddr, *proxyPort)
 	if err != nil {
 		log.Fatalf("Failed to Init pseudotcp: %v", err)
 	}
@@ -104,6 +114,6 @@ func main() {
 		p := gopacket.NewPacket(packet[:n], layers.LayerTypeIPv4, gopacket.Default)
 		logger.Debug("Received from TUN device", "p", p)
 
-		pseudotcp.Send(packet[:n])
+		pTCP.Send(packet[:n])
 	}
 }

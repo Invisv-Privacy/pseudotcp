@@ -19,17 +19,11 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 
-	"github.com/invisv-privacy/pseudotcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPSGet(t *testing.T) {
-	err := pseudotcp.Init(sendPacket, true, containerIP, "8444")
-	require.NoError(t, err, "pseudotcp.Init")
-
-	defer pseudotcp.Shutdown()
-
 	// Start target HTTP/S server
 	expectedResponse := "test http response data"
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
