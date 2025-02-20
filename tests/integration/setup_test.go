@@ -28,6 +28,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+var pTCP *pseudotcp.PseudoTCP
+
 var netstack *stack.Stack
 var endpointIP tcpip.Address
 
@@ -183,11 +185,46 @@ func TestMain(m *testing.M) {
 		}
 	}()
 
+	protectConnection := pseudotcp.SocketProtector(func(fd int) error {
+		logger.Debug("Protecting", "fd", fd)
+		return nil
+	})
+
+	sendPacket = func(packet []byte, length int) error {
+		p := gopacket.NewPacket(packet[:], layers.LayerTypeIPv4, gopacket.Default)
+		logger.Debug("Sending to netstack", "p", p)
+
+		sendPacketBuf := make([]byte, len(packet))
+		copy(sendPacketBuf, packet)
+		pseudoToNetstackChan <- sendPacketBuf
+		return nil
+	}
+
+	pTCPConfig := &pseudotcp.PseudoTCPConfig{
+		Logger:     logger,
+		SendPacket: sendPacket,
+
+		// Our test sends to a non-publicly route-able IP
+		ProhibitDisallowedIPPorts: false,
+	}
+
+	pTCP = pseudotcp.NewPseudoTCP(pTCPConfig)
+
+	pTCP.ConfigureProtect(protectConnection)
+
+	err = pTCP.Init(containerIP, "8444")
+
+	if err != nil {
+		log.Fatalf("failed to pTCP.Init: %v", err)
+	}
+
+	defer pTCP.Shutdown()
+
 	// Start a goroutine which reads from the netstackToPseudoChan and sends those packets to the pseudotcp stack
 	go func() {
 		for {
 			buf := <-netstackToPseudoChan
-			pseudotcp.Send(buf)
+			pTCP.Send(buf)
 		}
 	}()
 
@@ -223,24 +260,5 @@ func TestMain(m *testing.M) {
 	}
 	logger.Debug("NICAddress", "GetMainNICAddress", nicAddress)
 
-	protectConnection := pseudotcp.SocketProtector(func(fd int) error {
-		logger.Debug("Protecting", "fd", fd)
-		return nil
-	})
-
-	pseudotcp.ConfigureProtect(protectConnection)
-
-	sendPacket = func(packet []byte, length int) error {
-		p := gopacket.NewPacket(packet[:], layers.LayerTypeIPv4, gopacket.Default)
-		logger.Debug("Sending to netstack", "p", p)
-
-		sendPacketBuf := make([]byte, len(packet))
-		copy(sendPacketBuf, packet)
-		pseudoToNetstackChan <- sendPacketBuf
-		return nil
-	}
-
-	// Our test sends to a non-publicly route-able IP
-	pseudotcp.ProhibitDisallowedIPPorts = false
 	m.Run()
 }
