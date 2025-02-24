@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	masqueH2 "github.com/invisv-privacy/masque/http2"
 	"github.com/invisv-privacy/pseudotcp"
+	"github.com/invisv-privacy/pseudotcp/internal/testutils"
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 )
@@ -72,8 +74,6 @@ func main() {
 		return nil
 	})
 
-	pseudotcp.ConfigureProtect(protectConnection)
-
 	sendPacket := func(packet []byte, length int) error {
 		p := gopacket.NewPacket(packet[:], layers.LayerTypeIPv4, gopacket.Default)
 		logger.Debug("Sending to TUN device", "p", p)
@@ -90,7 +90,34 @@ func main() {
 		return nil
 	}
 
-	err = pseudotcp.Init(sendPacket, *verbose, *proxyAddr, *proxyPort)
+	config := masqueH2.ClientConfig{
+		ProxyAddr:  *proxyAddr + ":" + *proxyPort,
+		IgnoreCert: true,
+		Logger:     logger,
+		AuthToken:  "fake-token",
+		Prot:       masqueH2.SocketProtector(protectConnection),
+	}
+
+	proxyClient := &testutils.ProxyClient{
+		Client:  masqueH2.NewClient(config),
+		ProxyIP: *proxyAddr,
+	}
+
+	pTCPConfig := &pseudotcp.PseudoTCPConfig{
+		Logger:     logger,
+		SendPacket: sendPacket,
+
+		ProxyClient: proxyClient,
+
+		// Our test sends to a non-publicly route-able IP
+		ProhibitDisallowedIPPorts: false,
+	}
+
+	pTCP := pseudotcp.NewPseudoTCP(pTCPConfig)
+
+	pTCP.ConfigureProtect(protectConnection)
+
+	err = pTCP.Init()
 	if err != nil {
 		log.Fatalf("Failed to Init pseudotcp: %v", err)
 	}
@@ -104,6 +131,6 @@ func main() {
 		p := gopacket.NewPacket(packet[:n], layers.LayerTypeIPv4, gopacket.Default)
 		logger.Debug("Received from TUN device", "p", p)
 
-		pseudotcp.Send(packet[:n])
+		pTCP.Send(packet[:n])
 	}
 }
