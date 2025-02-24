@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	masqueH2 "github.com/invisv-privacy/masque/http2"
 	"github.com/invisv-privacy/pseudotcp"
+	"github.com/invisv-privacy/pseudotcp/internal/testutils"
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 )
@@ -88,9 +90,24 @@ func main() {
 		return nil
 	}
 
+	config := masqueH2.ClientConfig{
+		ProxyAddr:  *proxyAddr + ":" + *proxyPort,
+		IgnoreCert: true,
+		Logger:     logger,
+		AuthToken:  "fake-token",
+		Prot:       masqueH2.SocketProtector(protectConnection),
+	}
+
+	proxyClient := &testutils.ProxyClient{
+		Client:  masqueH2.NewClient(config),
+		ProxyIP: *proxyAddr,
+	}
+
 	pTCPConfig := &pseudotcp.PseudoTCPConfig{
 		Logger:     logger,
 		SendPacket: sendPacket,
+
+		ProxyClient: proxyClient,
 
 		// Our test sends to a non-publicly route-able IP
 		ProhibitDisallowedIPPorts: false,
@@ -100,7 +117,7 @@ func main() {
 
 	pTCP.ConfigureProtect(protectConnection)
 
-	err = pTCP.Init(*proxyAddr, *proxyPort)
+	err = pTCP.Init()
 	if err != nil {
 		log.Fatalf("Failed to Init pseudotcp: %v", err)
 	}
