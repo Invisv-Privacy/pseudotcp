@@ -15,8 +15,15 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	masqueH2 "github.com/invisv-privacy/masque/http2"
 )
+
+type ProxyClient interface {
+	Connect() error
+	CurrentProxyIP() string
+	CreateTCPStream(string) (io.ReadWriteCloser, error)
+	CreateUDPStream(string) (io.ReadWriteCloser, error)
+	Close() error
+}
 
 // UDPFlow tracks the state of a MASQUE connection to a _destination IP/port_ (different from TCP).
 type UDPFlow struct {
@@ -71,17 +78,9 @@ const (
 )
 
 type PseudoTCP struct {
-	// proxyIP stores the IP that the current proxy is listening on.
-	proxyIP string
-
-	// proxyPort stores the port that the current proxy is listening on.
-	proxyPort string
-
-	// proxyClient is the masque client
-	proxyClient *masqueH2.Client
-
-	// currentProxyFQDN stores the DNS name of the current proxy.
-	currentProxyFQDN string
+	// proxyClient is generally a masque proxy client though it can be any struct satisfying the ProxyClient interface,
+	// ie that it can create TCP and UDP streams to specified endpoints
+	proxyClient ProxyClient
 
 	// active indicates whether we can process packets.
 	active bool
@@ -134,6 +133,8 @@ type PseudoTCP struct {
 type PseudoTCPConfig struct {
 	Logger *slog.Logger
 
+	ProxyClient ProxyClient
+
 	SendPacket SendPacket
 
 	ProhibitDisallowedIPPorts bool
@@ -156,23 +157,20 @@ func NewPseudoTCP(config *PseudoTCPConfig) *PseudoTCP {
 		toLinux:                   config.SendPacket,
 		prohibitDisallowedIPPorts: config.ProhibitDisallowedIPPorts,
 
+		proxyClient: config.ProxyClient,
+
 		pendingTCPSYNs:      make(map[uint16]*TCPFlow),
 		establishedTCPFlows: make(chan *TCPFlow),
 	}
 }
 
 // Init initializes the userspace network stack module. This must be called before any other UserStack function.
-// proxyFQDN is the DNS name of the MASQUE proxy server.
-// proxyPort is the port number that the MASQUE proxy server is listening on.
-func (t *PseudoTCP) Init(proxyFQDN, proxyPort string) error {
-	t.logger.Debug("Initializing", "proxyFQDN", proxyFQDN)
+func (t *PseudoTCP) Init() error {
+	t.logger.Debug("Initializing")
 
-	t.proxyIP = ""
 	if t.toLinux == nil {
 		return errors.New("toLinux is nil")
 	}
-	t.currentProxyFQDN = proxyFQDN
-	t.proxyPort = proxyPort
 
 	t.initActiveFlows()
 	preBakePackets()
@@ -180,12 +178,15 @@ func (t *PseudoTCP) Init(proxyFQDN, proxyPort string) error {
 		t.logger.Error("Error in initWakeupUDPConn", "err", err)
 	}
 
-	err := t.connectToProxy()
+	err := t.proxyClient.Connect()
 	if err != nil {
 		t.active = false
 		t.logger.Error("failed connecting to proxy", "err", err)
 		return err
 	}
+
+	t.initDnsClient()
+
 	t.active = true
 	return nil
 }
@@ -217,9 +218,9 @@ func (t *PseudoTCP) initActiveFlows() {
 	t.clearActiveTCPFlows()
 	t.activeUDPFlows = make(map[UDPFlowKey]*UDPFlow)
 	t.deadUDPFlows = make([]*UDPFlow, 0)
-	if t.proxyClient != nil {
-		// TODO: any Close/cleanup for proxyClient?
-		t.proxyClient = nil
+
+	if err := t.proxyClient.Close(); err != nil {
+		t.logger.Error("Error closing proxyClient", "err", err)
 	}
 }
 
@@ -446,62 +447,9 @@ func (t *PseudoTCP) setupUDPMasque(dstIP net.IP, flow *UDPFlow) error {
 // If relay is not active, returns empty string.
 func (t *PseudoTCP) CurrentProxyIP() string {
 	if t.active {
-		return t.proxyIP
+		return t.proxyClient.CurrentProxyIP()
 	}
 	return ""
-}
-
-// connectToProxy connects to the MASQUE proxy and initializes the default MASQUE client.
-func (t *PseudoTCP) connectToProxy() error {
-	if t.currentProtect == nil {
-		return errors.New("currentProtect is nil")
-	}
-
-	proxy := t.currentProxyFQDN
-
-	ip := net.ParseIP(proxy)
-	if ip != nil && ip.To4() != nil {
-		// We have an ipv4 address, we can just use that
-		t.proxyIP = ip.String()
-	} else if ip != nil && ip.To4() == nil {
-		// We've been given an ipv6 address, we can return an error
-		return fmt.Errorf("ipv6 proxy addresses are unsupported, proxyIP: %v", ip)
-	} else if ip == nil {
-		// Not an ip address, we need to look it up
-		resolvedProxyIP, err := t.ResolveDOHJSON(proxy)
-		if err != nil {
-			return fmt.Errorf("failed to lookup proxy hostname: %w", err)
-		} else {
-			t.proxyIP = resolvedProxyIP
-		}
-	}
-	var proxyAddr string
-	if t.proxyPort != "" {
-		proxyAddr = t.proxyIP + ":" + t.proxyPort
-	} else {
-		proxyAddr = t.proxyIP + ":" + DEFAULT_PROXY_PORT
-	}
-
-	t.logger.Debug("resolved proxy", "proxyAddr", proxyAddr)
-
-	config := masqueH2.ClientConfig{
-		ProxyAddr:  proxyAddr,
-		IgnoreCert: true,
-		Logger:     t.logger,
-		AuthToken:  "fake-token",
-		Prot:       masqueH2.SocketProtector(t.currentProtect),
-	}
-
-	t.proxyClient = masqueH2.NewClient(config)
-
-	err := t.proxyClient.ConnectToProxy()
-	if err != nil {
-		return fmt.Errorf("failed to ConnectToProxy: %w", err)
-	}
-
-	t.initDnsClient()
-
-	return nil
 }
 
 func (t *PseudoTCP) initWakeupUDPConn() error {
@@ -517,19 +465,19 @@ func (t *PseudoTCP) initWakeupUDPConn() error {
 
 // ReconnectToProxy indicates to the Relay code that it should try to connect to the proxy again.
 // This is good to call when Android detects that a network interface has come back up.
-func (t *PseudoTCP) ReconnectToProxy(proxyFQDN, port string) error {
-	t.proxyIP = ""
-	t.proxyPort = port
-
-	t.currentProxyFQDN = proxyFQDN
-
+func (t *PseudoTCP) ReconnectToProxy() error {
 	t.active = false
 	t.initActiveFlows()
-	err := t.connectToProxy()
+
+	err := t.proxyClient.Connect()
 	if err != nil {
 		t.active = false
+		t.logger.Error("failed connecting to proxy", "err", err)
 		return err
 	}
+
+	t.initDnsClient()
+
 	t.active = true
 	return nil
 }
@@ -537,11 +485,9 @@ func (t *PseudoTCP) ReconnectToProxy(proxyFQDN, port string) error {
 func (t *PseudoTCP) Shutdown() {
 	t.active = false
 	t.terminateActiveFlows()
-	if t.proxyClient != nil {
-		// TODO: any Close/cleanup for proxyClient?
-		t.proxyClient = nil
+	if err := t.proxyClient.Close(); err != nil {
+		t.logger.Error("Error closing proxyClient", "err", err)
 	}
-	t.proxyIP = ""
 }
 
 func (t *PseudoTCP) processPendingTCPSYNs() {

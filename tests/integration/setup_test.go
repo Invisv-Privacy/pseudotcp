@@ -24,6 +24,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 
+	masqueH2 "github.com/invisv-privacy/masque/http2"
 	tc "github.com/testcontainers/testcontainers-go/modules/compose"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -200,9 +201,23 @@ func TestMain(m *testing.M) {
 		return nil
 	}
 
-	pTCPConfig := &pseudotcp.PseudoTCPConfig{
+	config := masqueH2.ClientConfig{
+		ProxyAddr:  containerIP + ":" + "8444",
+		IgnoreCert: true,
 		Logger:     logger,
-		SendPacket: sendPacket,
+		AuthToken:  "fake-token",
+		Prot:       masqueH2.SocketProtector(protectConnection),
+	}
+
+	proxyClient := &testutils.ProxyClient{
+		Client:  masqueH2.NewClient(config),
+		ProxyIP: containerIP,
+	}
+
+	pTCPConfig := &pseudotcp.PseudoTCPConfig{
+		Logger:      logger,
+		SendPacket:  sendPacket,
+		ProxyClient: proxyClient,
 
 		// Our test sends to a non-publicly route-able IP
 		ProhibitDisallowedIPPorts: false,
@@ -212,7 +227,7 @@ func TestMain(m *testing.M) {
 
 	pTCP.ConfigureProtect(protectConnection)
 
-	err = pTCP.Init(containerIP, "8444")
+	err = pTCP.Init()
 
 	if err != nil {
 		log.Fatalf("failed to pTCP.Init: %v", err)
