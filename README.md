@@ -1,5 +1,5 @@
 # PseudoTCP: A lightweight partial TCP stack for packet to stream interposition in Go
-
+[![Lint and Test](https://github.com/invisv-privacy/pseudotcp/actions/workflows/build.yaml/badge.svg)](https://github.com/Invisv-Privacy/pseudotcp/actions/workflows/build.yaml)[![GoDoc](https://pkg.go.dev/badge/github.com/invisv-privacy/pseudotcp?status.svg)](https://pkg.go.dev/github.com/invisv-privacy/pseudotcp)
 ## What is PseudoTCP?
 
 Many modern tunneling protocols, including IETF MASQUE, operate at a higher level of abstraction, dealing with flows rather than individual packets. However, this mismatch between the Android VPN interface and flow-based protocols poses a significant challenge for deploying MASQUE on Android devices.
