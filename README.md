@@ -1,35 +1,72 @@
-# PseudoTCP: A lightweight partial TCP stack for packet to stream interposition in Go
-[![Lint and Test](https://github.com/invisv-privacy/pseudotcp/actions/workflows/build.yaml/badge.svg)](https://github.com/Invisv-Privacy/pseudotcp/actions/workflows/build.yaml)[![GoDoc](https://pkg.go.dev/badge/github.com/invisv-privacy/pseudotcp?status.svg)](https://pkg.go.dev/github.com/invisv-privacy/pseudotcp)
-## What is PseudoTCP?
+# PseudoTCP
+
+[![Lint and Test](https://github.com/invisv-privacy/pseudotcp/actions/workflows/build.yaml/badge.svg)](https://github.com/Invisv-Privacy/pseudotcp/actions/workflows/build.yaml)
+[![GoDoc](https://pkg.go.dev/badge/github.com/invisv-privacy/pseudotcp?status.svg)](https://pkg.go.dev/github.com/invisv-privacy/pseudotcp)
+[![Go Report Card](https://goreportcard.com/badge/github.com/invisv-privacy/pseudotcp)](https://goreportcard.com/report/github.com/invisv-privacy/pseudotcp)
+
+A lightweight partial TCP stack for packet to stream interposition in Go
+
+## 📖 What is PseudoTCP?
 
 Many modern tunneling protocols, including IETF MASQUE, operate at a higher level of abstraction, dealing with flows rather than individual packets. However, this mismatch between the Android VPN interface and flow-based protocols poses a significant challenge for deploying MASQUE on Android devices.
 
-We are building this interposition stack we call PseudoTCP, which enables the use of unmodified applications and unmodified Android devices with a MASQUE-enabled Android VPN that uses PseudoTCP to transparently handle translation between packets and flows as needed. This will make it possible for ordinary users to use a MASQUE-based Android VPN application as they would any other VPN or circumvention tool, yet the traffic will be tunneled using our MASQUE stack as HTTPS traffic via the MASQUE-enabled infrastructure in use for that service.
+PseudoTCP is an interposition stack that enables the use of unmodified applications and unmodified Android devices with a MASQUE-enabled Android VPN. It transparently handles translation between packets and flows as needed, making it possible for ordinary users to use a MASQUE-based Android VPN application as they would any other VPN or circumvention tool. The traffic is tunneled using our MASQUE stack as HTTPS traffic via the MASQUE-enabled infrastructure.
 
-This will eventually integrate with our INVISV **masque** stack, which is an implementation of the [IETF MASQUE](https://datatracker.ietf.org/wg/masque/about/) tunneling protocol, written in Go. INVISV **masque** provides the client-side functionality needed for running a [Multi-Party Relay](https://invisv.com/articles/relay.html) service to protect users' network privacy.
+This project integrates with our INVISV **masque** stack, which is an implementation of the [IETF MASQUE](https://datatracker.ietf.org/wg/masque/about/) tunneling protocol, written in Go. INVISV **masque** provides the client-side functionality needed for running a [Multi-Party Relay](https://invisv.com/articles/relay.html) service to protect users' network privacy.
 
 **masque** enables application code on the client to tunnel bytestream (TCP) and packet (UDP) traffic via a MASQUE-supporting proxy, such as the [MASQUE service operated by Fastly](https://www.fastly.com/blog/kicking-off-privacy-week-fastly).
 
-## How do I use PseudoTCP?
+## 🚀 Getting Started
 
-PseudoTCP is intended to be used as part of an android VPN app. We have a [sample Android VPN app](https://github.com/Invisv-Privacy/pseudotcp-example-app) that uses this stack that can be referenced.
+### Prerequisites
 
-We also have an [example binary](./example/tun/README.md) that you can use in order to bind the pseudotcp stack to a TUN interface for some amount of demonstration/evaluation.
+- Go 1.23 or higher
+- Docker (for running integration tests)
 
-## Testing
-We currently have [integration tests](./tests/integration). They spin up a dockerized h2o proxy and leverage [gvisor's tcpip netstack](https://github.com/google/gvisor/tree/1a9abee80b7cb8655db7ba5714f0d3a8c00ccc67/pkg/tcpip) to emulate the android VPN host.
+## 🔧 Usage
+
+PseudoTCP is intended to be used as part of an Android VPN app. We provide:
+
+1. A [sample Android VPN app](https://github.com/Invisv-Privacy/pseudotcp-example-app) that demonstrates how to use this stack
+2. An [example binary](./example/tun/README.md) that binds the pseudotcp stack to a TUN interface for demonstration and evaluation
+
+## 🧪 Testing
+
+We have comprehensive [integration tests](./tests/integration) that:
+- Spin up a dockerized h2o proxy
+- Leverage [gvisor's tcpip netstack](https://github.com/google/gvisor/tree/master/pkg/tcpip) to emulate the Android VPN host
+- Assert that both [HTTPS GET requests](./tests/integration/https_get_test.go) as well as [UDP connections](./tests/integration/udp_test.go) are successful.
 
 To run the integration tests:
-```
-$ go test -v ./...
+
+```bash
+$ go test -v ./tests/integration
 ```
 
-## Benchmarking
-We include a benchmark that evaluates the performance of a TCP connection over our stack with a HTTP GET request of various sizes. We can then compare those figures to a matching HTTP GET request directly from client to httptest.
+### Linting
 
+We use golangci-lint for code quality checks. See [the install instructions](https://golangci-lint.run/welcome/install/) for comprehensive directions for your platform.
+
+```bash
+# Run linting
+$ golangci-lint run
 ```
-$ go test -bench=. -run='^#' -benchtime=20x ./tests/integration > bench-results.txt 
+
+## 📊 Benchmarking
+
+We include [benchmarks](./tests/integration/benchmark_test.go) that evaluate the performance of TCP connections over our stack with HTTP GET requests of various sizes, comparing them to direct HTTP GET requests:
+
+```bash
+# Run benchmarks
+$ go test -bench=. -run='^#' -benchtime=20x ./tests/integration > bench-results.txt
+
+# Analyze results
 $ benchstat ./bench-results.txt
+```
+
+Sample benchmark results:
+
+```
 goos: linux
 goarch: amd64
 pkg: github.com/invisv-privacy/pseudotcp/tests/integration
@@ -50,4 +87,8 @@ geomean                                             8.202m
 ¹ need >= 6 samples for confidence interval at level 0.95
 ```
 
-It's important to note that "with pseudotcp" vs "without pseudotcp" is an extremely unfavorable comparison as "with pseudotcp" includes the overhead of not only our pseudotcp stack, but also the MASQUE connection overhead as well as the h2o proxy container and associated docker networking traversal.
+**Note:** "with pseudotcp" vs "without pseudotcp" is an unfavorable comparison as "with pseudotcp" includes the overhead of not only our pseudotcp stack, but also the MASQUE connection overhead as well as the h2o proxy container and associated docker networking traversal.
+
+## 📄 License
+
+This project is licensed under the BSD 3-Clause License - see the [LICENSE](./LICENSE) file.
