@@ -17,59 +17,78 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// ProxyClient defines the interface for a client that can connect to a proxy server
+// and create TCP and UDP streams through that proxy.
 type ProxyClient interface {
+	// Connect establishes a connection to the proxy server.
 	Connect() error
+
+	// CurrentProxyIP returns the IP address of the currently connected proxy.
 	CurrentProxyIP() string
+
+	// CreateTCPStream creates a TCP stream to the specified address through the proxy.
 	CreateTCPStream(string) (io.ReadWriteCloser, error)
+
+	// CreateUDPStream creates a UDP stream to the specified address through the proxy.
 	CreateUDPStream(string) (io.ReadWriteCloser, error)
+
+	// Close terminates the connection to the proxy server.
 	Close() error
 }
 
 // UDPFlow tracks the state of a MASQUE connection to a _destination IP/port_ (different from TCP).
 type UDPFlow struct {
-	src            uint32
-	sport          uint16
-	dst            uint32
-	dport          uint16
-	garbageCollect bool
-	proxyConn      io.ReadWriteCloser
+	src            uint32             // Source IP address
+	sport          uint16             // Source port
+	dst            uint32             // Destination IP address
+	dport          uint16             // Destination port
+	garbageCollect bool               // Flag indicating if this flow should be garbage collected
+	proxyConn      io.ReadWriteCloser // Connection to the proxy for this flow
 }
 
 // UDPFlowKey keys the activeUDPFlows map with the client (src) IP/port and server (dst) IP/port.
 type UDPFlowKey struct {
-	src   uint32
-	sport uint16
-	dst   uint32
-	dport uint16
+	src   uint32 // Source IP address
+	sport uint16 // Source port
+	dst   uint32 // Destination IP address
+	dport uint16 // Destination port
 }
 
 // TCPFlow tracks the state of a virtual TCP connection between Android and the MASQUE proxy.
 type TCPFlow struct {
-	src            uint32
-	sport          uint16
-	dst            uint32
-	dport          uint16
-	seq            uint32
-	ack            uint32
-	rwin           int32
-	rwinScale      uint8
-	garbageCollect bool
-	proxyConn      io.ReadWriteCloser
+	src            uint32             // Source IP address
+	sport          uint16             // Source port
+	dst            uint32             // Destination IP address
+	dport          uint16             // Destination port
+	seq            uint32             // Current sequence number
+	ack            uint32             // Current acknowledgment number
+	rwin           int32              // Receive window size
+	rwinScale      uint8              // Window scale factor (RFC 1323)
+	garbageCollect bool               // Flag indicating if this flow should be garbage collected
+	proxyConn      io.ReadWriteCloser // Connection to the proxy for this flow
 }
 
-// Protect overrides Android's VpnService.protect()
-// Arguments:
-// fileDescriptor is a system file descriptor to protect from the VPN
+// SocketProtector is a function type that overrides Android's VpnService.protect()
+// It takes a system file descriptor and protects it from being routed through the VPN.
+// This is necessary to prevent loops when the VPN itself needs to make network connections.
 type SocketProtector func(fileDescriptor int) error
 
+// SendPacket is a function type for sending packets to the TUN interface.
+// It takes a packet buffer and its length, and returns an error if the send fails.
 type SendPacket func(packet []byte, length int) error
 
 const (
-	// MTU of the TUN interface we're using, has to match Android.
-	TUN_MTU                   = 32000
-	INTERNET_MTU              = 1500
+	// TUN_MTU is the Maximum Transmission Unit of the TUN interface we're using, has to match Android.
+	TUN_MTU = 32000
+
+	// INTERNET_MTU is the standard Maximum Transmission Unit for Internet connections.
+	INTERNET_MTU = 1500
+
+	// DNS_CACHE_TIMEOUT_SECONDS is the time in seconds that DNS responses are cached.
 	DNS_CACHE_TIMEOUT_SECONDS = 300
-	DEFAULT_PROXY_PORT        = "443"
+
+	// DEFAULT_PROXY_PORT is the default port used for proxy connections.
+	DEFAULT_PROXY_PORT = "443"
 )
 
 const (
@@ -77,6 +96,8 @@ const (
 	WAKEUP_PACKET_IP_VALUE byte   = 10
 )
 
+// PseudoTCP is the main structure that handles the interposition between
+// packet-based VPN interfaces and stream-based proxy connections.
 type PseudoTCP struct {
 	// proxyClient is generally a masque proxy client though it can be any struct satisfying the ProxyClient interface,
 	// ie that it can create TCP and UDP streams to specified endpoints
@@ -130,16 +151,27 @@ type PseudoTCP struct {
 	activeDoHServers []string
 }
 
+// PseudoTCPConfig contains the configuration options for creating a new PseudoTCP instance.
 type PseudoTCPConfig struct {
+	// Logger is the structured logger to use for logging messages.
+	// If nil, logging will be discarded.
 	Logger *slog.Logger
 
+	// ProxyClient is the client that will be used to connect to the proxy server.
+	// This must implement the ProxyClient interface.
 	ProxyClient ProxyClient
 
+	// SendPacket is the function that will be called to send packets to the TUN interface.
 	SendPacket SendPacket
 
+	// ProhibitDisallowedIPPorts determines whether to block packets to disallowed IP/port combinations.
+	// When true, packets to private IP ranges will be blocked with ICMP host unreachable.
 	ProhibitDisallowedIPPorts bool
 }
 
+// NewPseudoTCP creates a new PseudoTCP instance with the provided configuration.
+// It initializes internal data structures but does not start processing packets.
+// Call Init() after creating a PseudoTCP instance to start processing.
 func NewPseudoTCP(config *PseudoTCPConfig) *PseudoTCP {
 	// TODO: Either sane defaults or return an error here
 
@@ -165,6 +197,8 @@ func NewPseudoTCP(config *PseudoTCPConfig) *PseudoTCP {
 }
 
 // Init initializes the userspace network stack module. This must be called before any other UserStack function.
+// It sets up internal data structures, connects to the proxy, and initializes the DNS client.
+// Returns an error if initialization fails.
 func (t *PseudoTCP) Init() error {
 	t.logger.Debug("Initializing")
 
@@ -191,10 +225,14 @@ func (t *PseudoTCP) Init() error {
 	return nil
 }
 
+// Send processes an IP packet from the TUN interface.
+// This is the main entry point for packets coming from the device.
 func (t *PseudoTCP) Send(packetData []byte) {
 	t.UserStackIPProcessPacket(packetData)
 }
 
+// SetLogger updates the logger used by PseudoTCP.
+// This can be used to change logging behavior after initialization.
 func (t *PseudoTCP) SetLogger(l *slog.Logger) {
 	t.logger = l
 }
@@ -443,8 +481,8 @@ func (t *PseudoTCP) setupUDPMasque(dstIP net.IP, flow *UDPFlow) error {
 	return nil
 }
 
-// CurrentProxyIP returns the IP of the Proxy A server we are connected to.
-// If relay is not active, returns empty string.
+// CurrentProxyIP returns the IP of the proxy server we are connected to.
+// If PseudoTCP is not active, returns empty string.
 func (t *PseudoTCP) CurrentProxyIP() string {
 	if t.active {
 		return t.proxyClient.CurrentProxyIP()
@@ -463,8 +501,10 @@ func (t *PseudoTCP) initWakeupUDPConn() error {
 	return nil
 }
 
-// ReconnectToProxy indicates to the Relay code that it should try to connect to the proxy again.
-// This is good to call when Android detects that a network interface has come back up.
+// ReconnectToProxy attempts to reconnect to the proxy server.
+// This is useful when the network connection changes, such as when Android detects
+// that a network interface has come back up.
+// It resets all active flows and establishes a new connection to the proxy.
 func (t *PseudoTCP) ReconnectToProxy() error {
 	t.active = false
 	t.initActiveFlows()
@@ -482,6 +522,8 @@ func (t *PseudoTCP) ReconnectToProxy() error {
 	return nil
 }
 
+// Shutdown gracefully terminates PseudoTCP operation.
+// It closes all active flows and disconnects from the proxy.
 func (t *PseudoTCP) Shutdown() {
 	t.active = false
 	t.terminateActiveFlows()

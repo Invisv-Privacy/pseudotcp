@@ -16,11 +16,17 @@ import (
 	"golang.org/x/net/http2"
 )
 
+// DNSResponse represents the structure of a DNS-over-HTTPS response in JSON format.
 type DNSResponse struct {
+	// Answer contains the DNS records returned in the response
 	Answer []struct {
+		// Name is the domain name for this record
 		Name string `json:"name"`
-		Type int    `json:"type"`
-		TTL  int    `json:"ttl"`
+		// Type is the DNS record type (1 for A, 28 for AAAA, etc.)
+		Type int `json:"type"`
+		// TTL is the time-to-live for this record in seconds
+		TTL int `json:"ttl"`
+		// Data is the record data (IP address for A/AAAA records, etc.)
 		Data string `json:"data"`
 	} `json:"Answer"`
 }

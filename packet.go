@@ -4,9 +4,12 @@ import "net"
 
 // IP protocol numbers for L4 headers.
 const (
+	// PROTO_ICMP is the IP protocol number for ICMP
 	PROTO_ICMP byte = 1
-	PROTO_TCP  byte = 6
-	PROTO_UDP  byte = 17
+	// PROTO_TCP is the IP protocol number for TCP
+	PROTO_TCP byte = 6
+	// PROTO_UDP is the IP protocol number for UDP
+	PROTO_UDP byte = 17
 )
 
 // Byte offsets for IPv4 header fields.
@@ -61,14 +64,22 @@ const (
 
 // Header size constants.
 const (
-	DEFAULT_IP_HDR_SIZE               int = 20
-	DEFAULT_TCP_HDR_SIZE              int = 20
-	DEFAULT_UDP_HDR_SIZE              int = 8
+	// DEFAULT_IP_HDR_SIZE is the size of a standard IPv4 header
+	DEFAULT_IP_HDR_SIZE int = 20
+	// DEFAULT_TCP_HDR_SIZE is the size of a standard TCP header
+	DEFAULT_TCP_HDR_SIZE int = 20
+	// DEFAULT_UDP_HDR_SIZE is the size of a standard UDP header
+	DEFAULT_UDP_HDR_SIZE int = 8
+	// DEFAULT_ICMP_UNREACHABLE_HDR_SIZE is the size of an ICMP unreachable message header
 	DEFAULT_ICMP_UNREACHABLE_HDR_SIZE int = 8
-	SYNACK_SIZE                           = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE + 4
-	RST_SIZE                              = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE
-	ACK_SIZE                              = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE
-	ICMP_UNREACHABLE_SIZE                 = DEFAULT_IP_HDR_SIZE + DEFAULT_ICMP_UNREACHABLE_HDR_SIZE + (DEFAULT_IP_HDR_SIZE + 8)
+	// SYNACK_SIZE is the total size of a SYN-ACK packet
+	SYNACK_SIZE = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE + 4
+	// RST_SIZE is the total size of a RST packet
+	RST_SIZE = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE
+	// ACK_SIZE is the total size of an ACK packet
+	ACK_SIZE = DEFAULT_IP_HDR_SIZE + DEFAULT_TCP_HDR_SIZE
+	// ICMP_UNREACHABLE_SIZE is the total size of an ICMP unreachable message
+	ICMP_UNREACHABLE_SIZE = DEFAULT_IP_HDR_SIZE + DEFAULT_ICMP_UNREACHABLE_HDR_SIZE + (DEFAULT_IP_HDR_SIZE + 8)
 )
 
 // Pre-baked packets that have common fields set and the rest of the headers set to defaults or zero.
