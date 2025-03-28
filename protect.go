@@ -5,7 +5,9 @@ import (
 	"syscall"
 )
 
-// Configure sets up a socket protect function to be usable as currentProtect
+// ConfigureProtect sets up a socket protect function to be used by PseudoTCP.
+// This function is used to prevent VPN traffic from being routed through the VPN itself,
+// which would create a loop. On Android, this typically calls VpnService.protect().
 func (t *PseudoTCP) ConfigureProtect(protect SocketProtector) {
 	t.currentProtect = protect
 }
